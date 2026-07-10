@@ -19,7 +19,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "de": [
@@ -42,7 +43,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "es": [
@@ -65,7 +67,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "fr": [
@@ -88,7 +91,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "it": [
@@ -111,7 +115,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "ja": [
@@ -134,7 +139,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "ko": [
@@ -157,7 +163,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "pt": [
@@ -180,7 +187,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "ro": [
@@ -203,7 +211,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "ru": [
@@ -226,7 +235,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "tr": [
@@ -249,7 +259,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "zh": [
@@ -258,7 +269,12 @@
     "settingsAiProviderReasoningEffortAuto",
     "settingsAiProviderReasoningEffortLow",
     "settingsAiProviderReasoningEffortMedium",
-    "settingsAiProviderReasoningEffortHigh"
+    "settingsAiProviderReasoningEffortHigh",
+    "mindmapSaveAsImage"
+  ],
+
+  "zh_CN": [
+    "mindmapSaveAsImage"
   ],
 
   "zh_LZH": [
@@ -281,7 +297,8 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ],
 
   "zh_TW": [
@@ -304,6 +321,7 @@
     "settingsAdvancedHttpProxyTest",
     "settingsAdvancedHttpProxyTesting",
     "settingsAdvancedHttpProxyTestSuccess",
-    "settingsAdvancedHttpProxyTestFailed"
+    "settingsAdvancedHttpProxyTestFailed",
+    "mindmapSaveAsImage"
   ]
 }

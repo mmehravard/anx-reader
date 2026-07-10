@@ -1,7 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/utils/ai_reasoning_parser.dart';
+import 'package:anx_reader/utils/log/common.dart';
+import 'package:anx_reader/utils/save_img.dart';
+import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/ai/tool_tiles/tool_tile_base.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:flutter/gestures.dart';
@@ -27,8 +32,10 @@ class _MindmapStepTileState extends State<MindmapStepTile> {
   MindmapGraphBundle? _bundle;
   String? _error;
   final GlobalKey _viewportKey = GlobalKey(debugLabel: 'mindmapViewport');
+  final GlobalKey _captureKey = GlobalKey(debugLabel: 'mindmapCapture');
   final TransformationController _transformController =
       TransformationController();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -126,61 +133,97 @@ class _MindmapStepTileState extends State<MindmapStepTile> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FilledContainer(
-          width: double.infinity,
-          height: 360,
-          radius: 12,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width =
-                  constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
-              final height = constraints.maxHeight.isFinite
-                  ? constraints.maxHeight
-                  : 320.0;
-              return Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    GestureBinding.instance.pointerSignalResolver.register(
-                      event,
-                      (resolvedEvent) => _handlePointerScroll(
-                        resolvedEvent as PointerScrollEvent,
-                      ),
-                    );
-                  }
-                },
-                child: InteractiveViewer(
-                  key: _viewportKey,
-                  transformationController: _transformController,
-                  minScale: _minScale,
-                  maxScale: _maxScale,
-                  child: SizedBox(
-                    width: width,
-                    height: height,
-                    child: GraphView.builder(
-                      graph: bundle.graph,
-                      algorithm: bundle.algorithm,
-                      paint: Paint()
-                        ..color = theme.colorScheme.onSurface
-                        ..strokeWidth = 2
-                        ..style = PaintingStyle.stroke,
-                      autoZoomToFit: true,
-                      builder: (node) {
-                        final id = node.key?.value?.toString() ?? '';
-                        final data = bundle.lookup[id];
-                        final level = bundle.levels[id] ?? 0;
-                        final style = _resolveLevelStyle(theme, level);
-                        return _MindmapNodeCard(
-                          label: data?.label ?? id,
-                          backgroundColor: style.background,
-                          foregroundColor: style.foreground,
+        Stack(
+          children: [
+            FilledContainer(
+              width: double.infinity,
+              height: 360,
+              radius: 12,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth.isFinite
+                      ? constraints.maxWidth
+                      : 320.0;
+                  final height = constraints.maxHeight.isFinite
+                      ? constraints.maxHeight
+                      : 320.0;
+                  return Listener(
+                    onPointerSignal: (event) {
+                      if (event is PointerScrollEvent) {
+                        GestureBinding.instance.pointerSignalResolver
+                            .register(
+                          event,
+                          (resolvedEvent) => _handlePointerScroll(
+                            resolvedEvent as PointerScrollEvent,
+                          ),
                         );
-                      },
+                      }
+                    },
+                    child: InteractiveViewer(
+                      key: _viewportKey,
+                      transformationController: _transformController,
+                      minScale: _minScale,
+                      maxScale: _maxScale,
+                      child: RepaintBoundary(
+                        key: _captureKey,
+                        child: Container(
+                          color: theme.colorScheme.surface,
+                          width: width,
+                          height: height,
+                          child: GraphView.builder(
+                            graph: bundle.graph,
+                            algorithm: bundle.algorithm,
+                            paint: Paint()
+                              ..color = theme.colorScheme.onSurface
+                              ..strokeWidth = 2
+                              ..style = PaintingStyle.stroke,
+                            autoZoomToFit: true,
+                            builder: (node) {
+                              final id = node.key?.value?.toString() ?? '';
+                              final data = bundle.lookup[id];
+                              final level = bundle.levels[id] ?? 0;
+                              final style = _resolveLevelStyle(theme, level);
+                              return _MindmapNodeCard(
+                                label: data?.label ?? id,
+                                backgroundColor: style.background,
+                                foregroundColor: style.foreground,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Material(
+                color: theme.colorScheme.surface.withValues(alpha: 0.85),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: L10n.of(context).mindmapSaveAsImage,
+                  icon: _isSaving
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.primary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.save_alt,
+                          size: 20,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                  onPressed: _isSaving ? null : _saveAsImage,
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ),
         if (bundle.stats != null)
           Padding(
@@ -195,6 +238,72 @@ class _MindmapStepTileState extends State<MindmapStepTile> {
           ),
       ],
     );
+  }
+
+  Future<void> _saveAsImage() async {
+    if (_isSaving || _bundle == null) {
+      return;
+    }
+
+    // Snapshot the bundle up-front so the captured pixels and the derived
+    // file name always refer to the same mindmap version, even if a
+    // concurrent tool-output update replaces `_bundle` while we await below.
+    final capturedBundle = _bundle;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final boundary = _captureKey.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary) {
+        AnxToast.show(L10n.of(context).commonFailed);
+        return;
+      }
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List? bytes = byteData?.buffer.asUint8List();
+
+      if (bytes == null) {
+        AnxToast.show(L10n.of(context).commonFailed);
+        return;
+      }
+
+      final fileName = _sanitizeFileName(capturedBundle?.title);
+      await SaveImg.downloadImg(bytes, 'png', fileName);
+    } catch (error) {
+      AnxLog.severe('Save mindmap image error: $error');
+      if (mounted) {
+        AnxToast.show(L10n.of(context).commonFailed);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  /// Builds a filesystem-safe file name from an untrusted, LLM-supplied
+  /// mindmap title. Strips path separators, parent-directory sequences, and
+  /// any other characters that are not safe across platforms.
+  String _sanitizeFileName(String? rawTitle) {
+    final title = rawTitle?.trim();
+    if (title == null || title.isEmpty) {
+      return 'mindmap';
+    }
+
+    final sanitized = title
+        .replaceAll('..', '_')
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+
+    final trimmed = sanitized.replaceAll(RegExp(r'^_+|_+$'), '');
+    return trimmed.isEmpty ? 'mindmap' : trimmed;
   }
 
   void _handlePointerScroll(PointerScrollEvent event) {
@@ -289,6 +398,7 @@ class MindmapGraphBundle {
     required this.lookup,
     required this.stats,
     required this.levels,
+    required this.title,
   });
 
   factory MindmapGraphBundle.fromPayload(MindmapPayload payload) {
@@ -332,6 +442,7 @@ class MindmapGraphBundle {
       lookup: lookup,
       stats: payload.stats,
       levels: levels,
+      title: payload.title,
     );
   }
 
@@ -340,6 +451,7 @@ class MindmapGraphBundle {
   final Map<String, MindmapNodeData> lookup;
   final MindmapStats? stats;
   final Map<String, int> levels;
+  final String title;
 }
 
 class MindmapPayload {

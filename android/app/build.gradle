@@ -32,7 +32,8 @@ android {
     namespace "com.anxcye.anx_reader"
     // compileSdk flutter.compileSdkVersion
     compileSdk 35
-    ndkVersion flutter.ndkVersion
+    ndkVersion "26.3.11579264"
+
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8

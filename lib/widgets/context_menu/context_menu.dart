@@ -294,6 +294,7 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
   late bool _reverse;
   late bool _showTranslationMenu;
   bool _showReaderNoteMenu = false;
+  bool _showMoreMenu = false;
   bool _waitingForFirstMeasurement = true;
   late BoxConstraints _menuConstraints;
   late double _bottomInset;
@@ -429,6 +430,13 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
     _scheduleRecalculate();
   }
 
+  void _toggleMoreMenu({bool? show}) {
+    setState(() {
+      _showMoreMenu = show ?? !_showMoreMenu;
+    });
+    _scheduleRecalculate();
+  }
+
   void _toggleReaderNoteMenu({bool? show}) {
     final target = show ?? !_showReaderNoteMenu;
     epubPlayerKey.currentState?.setSelectionClearLocked(target);
@@ -518,6 +526,8 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
                                   toggleReaderNoteMenu: _toggleReaderNoteMenu,
                                   openReaderNoteMenu: _openReaderNoteMenu,
                                   onNoteCreated: _handleNoteCreated,
+                                  toggleMoreMenu: _toggleMoreMenu,
+                                  showMoreMenu: _showMoreMenu,
                                   axis: widget.axis,
                                   reverse: _reverse,
                                 ),

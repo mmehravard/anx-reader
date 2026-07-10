@@ -27,6 +27,8 @@ class ExcerptMenu extends StatefulWidget {
   final void Function({bool? show}) toggleReaderNoteMenu;
   final Future<void> Function(int noteId) openReaderNoteMenu;
   final void Function(int noteId) onNoteCreated;
+  final void Function({bool? show}) toggleMoreMenu;
+  final bool showMoreMenu;
   final Axis axis;
   final bool reverse;
 
@@ -42,6 +44,8 @@ class ExcerptMenu extends StatefulWidget {
     required this.toggleReaderNoteMenu,
     required this.openReaderNoteMenu,
     required this.onNoteCreated,
+    required this.toggleMoreMenu,
+    required this.showMoreMenu,
     required this.axis,
     required this.reverse,
   });
@@ -275,6 +279,59 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             icon: const Icon(EvaIcons.copy),
             text: L10n.of(context).contextMenuCopy,
           ),
+          // edit note
+          if (!widget.footnote)
+            IconAndText(
+              compact: true,
+              onTap: () async {
+                epubPlayerKey.currentState?.setSelectionClearLocked(true);
+                await onColorSelected(annoColor, close: false);
+                final targetId = noteId ?? widget.id;
+                if (targetId != null) {
+                  await widget.openReaderNoteMenu(targetId);
+                } else {
+                  widget.toggleReaderNoteMenu(show: true);
+                }
+              },
+              icon: const Icon(EvaIcons.edit_2_outline),
+              text: L10n.of(context).contextMenuWriteIdea,
+            ),
+          // AI chat
+          if (EnvVar.enableAIFeature)
+            IconAndText(
+              compact: true,
+              onTap: () {
+                widget.onClose();
+                final key = readingPageKey.currentState;
+                if (key != null) {
+                  key.showAiChat(
+                    content: widget.annoContent,
+                    sendImmediate: false,
+                  );
+                  key.aiChatKey.currentState?.inputController.text =
+                      widget.annoContent;
+                }
+              },
+              icon: const Icon(EvaIcons.message_circle_outline),
+              text: L10n.of(context).navBarAI,
+            ),
+          // toggle "more" menu (search, translate, narrate, share)
+          IconAndText(
+            compact: true,
+            onTap: widget.toggleMoreMenu,
+            icon: const Icon(Icons.more_horiz),
+            text: L10n.of(context).contextMenuMore,
+          ),
+        ],
+      ),
+    );
+
+    Widget moreMenu = Container(
+      decoration: widget.decoration,
+      child: AxisFlex(
+        axis: widget.axis,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           // Web search
           IconAndText(
             compact: true,
@@ -320,42 +377,6 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             icon: const Icon(Icons.headphones),
             text: L10n.of(context).contextMenuNarrate,
           ),
-          // edit note
-          if (!widget.footnote)
-            IconAndText(
-              compact: true,
-              onTap: () async {
-                epubPlayerKey.currentState?.setSelectionClearLocked(true);
-                await onColorSelected(annoColor, close: false);
-                final targetId = noteId ?? widget.id;
-                if (targetId != null) {
-                  await widget.openReaderNoteMenu(targetId);
-                } else {
-                  widget.toggleReaderNoteMenu(show: true);
-                }
-              },
-              icon: const Icon(EvaIcons.edit_2_outline),
-              text: L10n.of(context).contextMenuWriteIdea,
-            ),
-          // AI chat
-          if (EnvVar.enableAIFeature)
-            IconAndText(
-              compact: true,
-              onTap: () {
-                widget.onClose();
-                final key = readingPageKey.currentState;
-                if (key != null) {
-                  key.showAiChat(
-                    content: widget.annoContent,
-                    sendImmediate: false,
-                  );
-                  key.aiChatKey.currentState?.inputController.text =
-                      widget.annoContent;
-                }
-              },
-              icon: const Icon(EvaIcons.message_circle_outline),
-              text: L10n.of(context).navBarAI,
-            ),
           // share
           IconAndText(
             compact: true,
@@ -392,12 +413,20 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             children: [
               SingleChildScrollView(
                   scrollDirection: widget.axis, child: operatorMenu),
-              const SizedBox.square(dimension: 10),
-              if (!widget.footnote)
+              if (widget.showMoreMenu) ...[
+                const SizedBox.square(dimension: 10),
+                SingleChildScrollView(
+                  scrollDirection: widget.axis,
+                  child: moreMenu,
+                ),
+              ],
+              if (!widget.footnote) ...[
+                const SizedBox.square(dimension: 10),
                 SingleChildScrollView(
                   scrollDirection: widget.axis,
                   child: annotationMenu,
                 ),
+              ],
             ],
           ),
         ],
