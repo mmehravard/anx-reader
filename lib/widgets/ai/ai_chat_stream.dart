@@ -5,6 +5,7 @@ import 'package:anx_reader/enums/hint_key.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/ai_provider.dart';
+import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/providers/ai_chat.dart';
 import 'package:anx_reader/providers/ai_history.dart';
 import 'package:anx_reader/providers/ai_providers.dart';
@@ -15,6 +16,7 @@ import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/ai_reasoning_parser.dart';
 import 'package:anx_reader/widgets/ai/model_picker_dialog.dart';
+import 'package:anx_reader/widgets/ai/ai_highlights_panel.dart';
 import 'package:anx_reader/widgets/ai/tool_step_tile.dart';
 import 'package:anx_reader/widgets/ai/tool_tiles/apply_book_tags_step_tile.dart';
 import 'package:anx_reader/widgets/ai/tool_tiles/mindmap_step_tile.dart';
@@ -38,12 +40,14 @@ class AiChatStream extends ConsumerStatefulWidget {
     this.sendImmediate = false,
     this.quickPromptChips = const [],
     this.trailing,
+    this.book,
   });
 
   final String? initialMessage;
   final bool sendImmediate;
   final List<AiQuickPromptChip> quickPromptChips;
   final List<Widget>? trailing;
+  final Book? book;
 
   @override
   ConsumerState<AiChatStream> createState() => AiChatStreamState();
@@ -60,6 +64,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   late List<String> _suggestedPrompts;
   late List<String> _starterPrompts;
   double _fontSize = 14.0;
+  bool _isSelectingHighlights = false;
 
   List<Map<String, String>> _getQuickPrompts(BuildContext context) {
     return [
@@ -168,6 +173,14 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
         );
       }
     });
+  }
+
+  void _sendHighlights(String prompt) {
+    inputController.text = prompt;
+    setState(() {
+      _isSelectingHighlights = false;
+    });
+    _sendMessage();
   }
 
   Widget _buildHistoryDrawer(BuildContext context) {
@@ -781,13 +794,30 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       key: _scaffoldKey,
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(L10n.of(context).aiChat),
+        title: Text(
+            _isSelectingHighlights ? 'Highlights' : L10n.of(context).aiChat),
         leading: IconButton(
           icon: const Icon(Icons.insert_drive_file),
           tooltip: L10n.of(context).history,
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         actions: [
+          if (widget.book != null)
+            IconButton(
+              icon: Icon(
+                _isSelectingHighlights
+                    ? Icons.chat_bubble_outline
+                    : Icons.format_quote_outlined,
+              ),
+              tooltip: _isSelectingHighlights
+                  ? L10n.of(context).aiChat
+                  : 'Select highlights',
+              onPressed: _isStreaming
+                  ? null
+                  : () => setState(() {
+                        _isSelectingHighlights = !_isSelectingHighlights;
+                      }),
+            ),
           IconButton(
             icon: const Icon(Icons.edit_document),
             onPressed: _clearMessage,
@@ -804,45 +834,48 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       drawer: Drawer(
         child: _buildHistoryDrawer(context),
       ),
-      body: EnvVar.isAppStore &&
-              Prefs().shouldShowHint(HintKey.aiDataSharingConsent)
-          ? _buildDataSharingConsent(context)
-          : Column(
-              children: [
-                Expanded(
-                  child: _messageStream != null
-                      ? StreamBuilder<List<ChatMessage>>(
-                          stream: _messageStream,
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return Skeletonizer.zone(child: Bone.multiText());
-                            }
+      body: _isSelectingHighlights
+          ? AiHighlightsPanel(book: widget.book!, onSend: _sendHighlights)
+          : EnvVar.isAppStore &&
+                  Prefs().shouldShowHint(HintKey.aiDataSharingConsent)
+              ? _buildDataSharingConsent(context)
+              : Column(
+                  children: [
+                    Expanded(
+                      child: _messageStream != null
+                          ? StreamBuilder<List<ChatMessage>>(
+                              stream: _messageStream,
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return Skeletonizer.zone(
+                                      child: Bone.multiText());
+                                }
 
-                            final messages = snapshot.data!;
-                            if (messages.isEmpty) {
-                              return buildEmptyState();
-                            }
+                                final messages = snapshot.data!;
+                                if (messages.isEmpty) {
+                                  return buildEmptyState();
+                                }
 
-                            return _buildMessageList(messages);
-                          },
-                        )
-                      : ref.watch(aiChatProvider).when(
-                            data: (messages) {
-                              if (messages.isEmpty) {
-                                return buildEmptyState();
-                              }
+                                return _buildMessageList(messages);
+                              },
+                            )
+                          : ref.watch(aiChatProvider).when(
+                                data: (messages) {
+                                  if (messages.isEmpty) {
+                                    return buildEmptyState();
+                                  }
 
-                              return _buildMessageList(messages);
-                            },
-                            loading: () =>
-                                Skeletonizer.zone(child: Bone.multiText()),
-                            error: (error, stack) =>
-                                Center(child: Text('error: $error')),
-                          ),
+                                  return _buildMessageList(messages);
+                                },
+                                loading: () =>
+                                    Skeletonizer.zone(child: Bone.multiText()),
+                                error: (error, stack) =>
+                                    Center(child: Text('error: $error')),
+                              ),
+                    ),
+                    inputBox,
+                  ],
                 ),
-                inputBox,
-              ],
-            ),
     );
   }
 

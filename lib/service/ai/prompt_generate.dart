@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/ai_prompts.dart';
+import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/models/book_note.dart';
 import 'package:langchain_core/chat_models.dart';
 import 'package:langchain_core/prompts.dart';
 
@@ -140,6 +142,31 @@ PromptTemplatePayload generatePromptFullTextTranslate(
     },
     identifier: AiPrompts.fullTextTranslate,
   );
+}
+
+String generatePromptWithHighlights({
+  required Book book,
+  required List<BookNote> highlights,
+  String? instruction,
+}) {
+  final buffer = StringBuffer(
+      'The following are selected highlights from "${book.title}":');
+  for (var index = 0; index < highlights.length; index++) {
+    final highlight = highlights[index];
+    buffer.writeln('\n\n${index + 1}. ${highlight.content.trim()}');
+    if (highlight.chapter.trim().isNotEmpty) {
+      buffer.writeln('Chapter: ${highlight.chapter.trim()}');
+    }
+    if (highlight.readerNote?.trim().isNotEmpty ?? false) {
+      buffer.writeln('My note: ${highlight.readerNote!.trim()}');
+    }
+  }
+
+  final trimmedInstruction = instruction?.trim();
+  if (trimmedInstruction != null && trimmedInstruction.isNotEmpty) {
+    buffer.writeln('\n\n$trimmedInstruction');
+  }
+  return buffer.toString();
 }
 
 String _normalizePrompt(String template) {
