@@ -1,5 +1,4 @@
 import 'package:anx_reader/l10n/generated/L10n.dart';
-import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/service/ai/tools/apply_book_tags_tool.dart';
 import 'package:anx_reader/service/ai/tools/book_content_search_tool.dart';
 import 'package:anx_reader/service/ai/tools/books_tags_list_tool.dart';
@@ -21,14 +20,19 @@ import 'package:anx_reader/service/ai/tools/repository/groups_repository.dart';
 import 'package:anx_reader/service/ai/tools/repository/notes_repository.dart';
 import 'package:anx_reader/service/ai/tools/repository/reading_history_repository.dart';
 import 'package:anx_reader/service/ai/tools/repository/tag_repository.dart';
+import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/models/current_reading_state.dart';
+import 'package:anx_reader/models/toc_item.dart';
+import 'package:anx_reader/providers/chapter_content_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:langchain_core/tools.dart';
 
 /// Context object shared by AI tools so builders don't need long constructors.
 class AiToolContext {
-  AiToolContext({required this.ref});
+  AiToolContext({required this.ref, required this.conversation});
 
   final WidgetRef ref;
+  final AiConversationContext conversation;
 
   late final NotesRepository notesRepository = NotesRepository();
   late final BooksRepository booksRepository = BooksRepository();
@@ -39,7 +43,25 @@ class AiToolContext {
       ReadingHistoryRepository();
   late final TagRepository tagRepository = TagRepository();
 
-  bool get isReading => ref.read(currentReadingProvider).isReading;
+  bool get isReading => conversation.hasActiveReader;
+}
+
+/// Immutable request context. Reading-only tools must use this binding instead
+/// of global reader state so a saved Book A conversation cannot inspect Book B.
+class AiConversationContext {
+  const AiConversationContext({
+    this.book,
+    this.readingState,
+    this.chapterContentHandlers,
+    this.tocItems = const [],
+  });
+
+  final Book? book;
+  final CurrentReadingState? readingState;
+  final ChapterContentHandlers? chapterContentHandlers;
+  final List<TocItem> tocItems;
+
+  bool get hasActiveReader => readingState?.isReading == true && book != null;
 }
 
 class AiToolDefinition {

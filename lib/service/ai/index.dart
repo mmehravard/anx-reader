@@ -10,6 +10,7 @@ import 'package:anx_reader/service/ai/ai_key_rotator.dart';
 import 'package:anx_reader/service/ai/langchain_ai_config.dart';
 import 'package:anx_reader/service/ai/langchain_registry.dart';
 import 'package:anx_reader/service/ai/langchain_runner.dart';
+import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
 import 'package:anx_reader/utils/ai_reasoning_parser.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +50,7 @@ Stream<String> aiGenerateStream(
   bool regenerate = false,
   bool useAgent = false,
   WidgetRef? ref,
+  AiConversationContext? conversation,
 }) {
   if (useAgent) {
     assert(ref != null, 'ref must be provided when useAgent is true');
@@ -61,7 +63,8 @@ Stream<String> aiGenerateStream(
       overrideConfig: config,
       regenerate: regenerate,
       useAgent: useAgent,
-      registry: registry);
+      registry: registry,
+      conversation: conversation);
 }
 
 void cancelActiveAiRequest() {
@@ -75,6 +78,7 @@ Stream<String> _generateStream({
   required bool regenerate,
   required bool useAgent,
   required LangchainAiRegistry registry,
+  AiConversationContext? conversation,
 }) async* {
   AnxLog.info('aiGenerateStream called identifier: $identifier');
   final sanitizedMessages = _sanitizeMessagesForPrompt(messages);
@@ -106,7 +110,7 @@ Stream<String> _generateStream({
               'aiGenerateStream (new): ${provider.id}, model: ${config.model}, baseUrl: ${config.baseUrl}');
 
           final pipeline = registry.resolveByProtocol(provider.protocol, config,
-              useAgent: useAgent);
+              useAgent: useAgent, conversation: conversation);
           final model = pipeline.model;
 
           await _throttleIfNeeded();
@@ -172,7 +176,7 @@ Stream<String> _generateStream({
 
             final pipeline = registry.resolveByProtocol(
                 provider.protocol, config,
-                useAgent: useAgent);
+                useAgent: useAgent, conversation: conversation);
             final model = pipeline.model;
 
             await _throttleIfNeeded();
@@ -226,7 +230,11 @@ Stream<String> _generateStream({
   AnxLog.info(
       'aiGenerateStream (legacy): $selectedIdentifier, model: ${config.model}, baseUrl: ${config.baseUrl}');
 
-  final pipeline = registry.resolve(config, useAgent: useAgent);
+  final pipeline = registry.resolve(
+    config,
+    useAgent: useAgent,
+    conversation: conversation,
+  );
   final model = pipeline.model;
 
   await _throttleIfNeeded();

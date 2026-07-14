@@ -1,6 +1,4 @@
-import 'package:anx_reader/providers/chapter_content_bridge.dart';
-import 'package:anx_reader/providers/current_reading.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
 
 class ChapterContentRepository {
   const ChapterContentRepository();
@@ -19,15 +17,14 @@ class ChapterContentRepository {
   }
 
   Future<String> fetchCurrent(
-    WidgetRef ref, {
+    AiConversationContext conversation, {
     int? maxCharacters,
   }) async {
-    final readingState = ref.read(currentReadingProvider);
-    if (!readingState.isReading) {
+    if (!conversation.hasActiveReader) {
       throw StateError('No active reading session.');
     }
 
-    final handlers = ref.read(chapterContentBridgeProvider);
+    final handlers = conversation.chapterContentHandlers;
     if (handlers == null) {
       throw StateError('Reader bridge is not available.');
     }
@@ -38,7 +35,7 @@ class ChapterContentRepository {
   }
 
   Future<String> fetchByHref(
-    WidgetRef ref, {
+    AiConversationContext conversation, {
     required String href,
     int? maxCharacters,
   }) async {
@@ -47,12 +44,11 @@ class ChapterContentRepository {
       throw ArgumentError('href must not be empty');
     }
 
-    final readingState = ref.read(currentReadingProvider);
-    if (!readingState.isReading) {
+    if (!conversation.hasActiveReader) {
       throw StateError('No active reading session.');
     }
 
-    final handlers = ref.read(chapterContentBridgeProvider);
+    final handlers = conversation.chapterContentHandlers;
     if (handlers == null) {
       throw StateError('Reader bridge is not available.');
     }

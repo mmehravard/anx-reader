@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/ai_provider.dart';
-import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:langchain_anthropic/langchain_anthropic.dart';
@@ -21,6 +20,7 @@ class LangchainAiRegistry {
   LangchainPipeline resolve(
     LangchainAiConfig config, {
     bool useAgent = false,
+    AiConversationContext? conversation,
   }) {
     switch (config.identifier) {
       case 'claude':
@@ -28,12 +28,14 @@ class LangchainAiRegistry {
           config,
           _buildAnthropic(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
       case 'gemini':
         return _buildPipeline(
           config,
           _buildGoogle(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
       case 'deepseek':
       case 'openrouter':
@@ -43,6 +45,7 @@ class LangchainAiRegistry {
           config,
           _buildOpenAi(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
     }
   }
@@ -52,6 +55,7 @@ class LangchainAiRegistry {
     AiProtocol protocol,
     LangchainAiConfig config, {
     bool useAgent = false,
+    AiConversationContext? conversation,
   }) {
     switch (protocol) {
       case AiProtocol.claude:
@@ -59,18 +63,21 @@ class LangchainAiRegistry {
           config,
           _buildAnthropic(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
       case AiProtocol.gemini:
         return _buildPipeline(
           config,
           _buildGoogle(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
       case AiProtocol.openai:
         return _buildPipeline(
           config,
           _buildOpenAi(config),
           useAgent: useAgent,
+          conversation: conversation,
         );
     }
   }
@@ -106,20 +113,24 @@ class LangchainAiRegistry {
     LangchainAiConfig config,
     BaseChatModel model, {
     required bool useAgent,
+    AiConversationContext? conversation,
   }) {
     if (useAgent) {
       assert(ref != null, 'ref must be provided when useAgent is true');
     }
 
-    final isReading =
-        useAgent && ref != null && ref!.read(currentReadingProvider).isReading;
+    final effectiveConversation = conversation ?? const AiConversationContext();
+    final isReading = useAgent && effectiveConversation.hasActiveReader;
 
     var tools = const <Tool>[];
     ChatMessage? systemMessage;
 
     if (useAgent) {
       final enabledIds = Prefs().enabledAiToolIds;
-      final toolContext = AiToolContext(ref: ref!);
+      final toolContext = AiToolContext(
+        ref: ref!,
+        conversation: effectiveConversation,
+      );
       tools = AiToolRegistry.buildTools(toolContext, enabledIds);
       final enabledDefs = AiToolRegistry.definitions
           .where((def) => enabledIds.contains(def.id))
@@ -127,6 +138,7 @@ class LangchainAiRegistry {
       systemMessage = _buildAgentSystemMessage(
         isReading: isReading,
         enabledTools: enabledDefs,
+        conversation: effectiveConversation,
       );
     }
 
@@ -140,6 +152,7 @@ class LangchainAiRegistry {
   ChatMessage _buildAgentSystemMessage({
     required bool isReading,
     required List<AiToolDefinition> enabledTools,
+    required AiConversationContext conversation,
   }) {
     final currentLanguageCode =
         Prefs().locale?.languageCode ?? Platform.localeName;
@@ -169,6 +182,11 @@ class LangchainAiRegistry {
     final readingStateContext = isReading
         ? '📖 User is currently reading - You are a focused reading companion, providing instant comprehension help, translation, and note-taking assistance.'
         : '📚 User is browsing the library - You are a wise librarian, helping organize books and plan reading strategies.';
+    final conversationBookContext = conversation.book == null
+        ? 'This is a global conversation and is not tied to one book.'
+        : 'This conversation is permanently tied to "${conversation.book!.title}" '
+            '(book ID ${conversation.book!.id}). Use that book for book-specific '
+            'questions and never substitute another currently opened book.';
 
     final guidance =
         '''You are "Anx Reader AI", an intelligent reading assistant integrated into the Anx Reader app.
@@ -178,6 +196,7 @@ A knowledgeable reading companion who helps users understand, organize, and enjo
 
 ## Current Context
 $readingStateContext
+$conversationBookContext
 
 ## Tool Usage Principles
 1. **Gather context first** - Use tools to understand the situation before responding

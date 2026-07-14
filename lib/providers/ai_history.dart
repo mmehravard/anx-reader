@@ -36,9 +36,9 @@ class AiHistoryNotifier
     await _load();
   }
 
-  Future<void> clear() async {
-    await AiHistoryStore.clear();
-    state = const AsyncValue.data([]);
+  Future<void> clear({AiConversationScope? scope, int? bookId}) async {
+    await AiHistoryStore.clear(scope: scope, bookId: bookId);
+    await _load();
   }
 
   AiChatHistoryEntry? findById(String id) {

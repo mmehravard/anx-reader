@@ -2,15 +2,12 @@ import 'dart:async';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/toc_item.dart';
-import 'package:anx_reader/providers/book_toc.dart';
-import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'base_tool.dart';
 
 class CurrentBookTocTool extends RepositoryTool<JsonMap, Map<String, dynamic>> {
-  CurrentBookTocTool(this._ref)
+  CurrentBookTocTool(this._conversation)
       : super(
           name: 'current_book_toc',
           description:
@@ -22,7 +19,7 @@ class CurrentBookTocTool extends RepositoryTool<JsonMap, Map<String, dynamic>> {
           timeout: const Duration(seconds: 2),
         );
 
-  final WidgetRef _ref;
+  final AiConversationContext _conversation;
 
   @override
   JsonMap parseInput(Map<String, dynamic> json) {
@@ -31,10 +28,10 @@ class CurrentBookTocTool extends RepositoryTool<JsonMap, Map<String, dynamic>> {
 
   @override
   Future<Map<String, dynamic>> run(JsonMap input) async {
-    final readingState = _ref.read(currentReadingProvider);
-    final tocItems = _ref.read(bookTocProvider);
+    final readingState = _conversation.readingState;
+    final tocItems = _conversation.tocItems;
 
-    if (!readingState.isReading || readingState.book == null) {
+    if (readingState?.isReading != true || _conversation.book == null) {
       return {
         'isReading': false,
         'message':
@@ -44,7 +41,7 @@ class CurrentBookTocTool extends RepositoryTool<JsonMap, Map<String, dynamic>> {
     }
 
     final currentLocation = {
-      'href': readingState.chapterHref,
+      'href': readingState!.chapterHref,
       'title': readingState.chapterTitle,
       'percentage': readingState.percentage,
     };
@@ -72,5 +69,5 @@ final AiToolDefinition currentBookTocToolDefinition = AiToolDefinition(
   id: 'current_book_toc',
   displayNameBuilder: (L10n l10n) => l10n.aiToolCurrentBookTocName,
   descriptionBuilder: (L10n l10n) => l10n.aiToolCurrentBookTocDescription,
-  build: (context) => CurrentBookTocTool(context.ref).tool,
+  build: (context) => CurrentBookTocTool(context.conversation).tool,
 );

@@ -198,17 +198,24 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
           Expanded(
             child: historyState.when(
               data: (items) {
-                if (items.isEmpty) {
+                final scopedItems = items.where((entry) {
+                  if (widget.book == null) {
+                    return entry.scope == AiConversationScope.global;
+                  }
+                  return entry.scope == AiConversationScope.book &&
+                      entry.bookId == widget.book!.id;
+                }).toList(growable: false);
+                if (scopedItems.isEmpty) {
                   return Center(
                     child: Text(L10n.of(context).noConversationTip),
                   );
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: items.length,
+                  itemCount: scopedItems.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
-                    final entry = items[index];
+                    final entry = scopedItems[index];
                     return _buildHistoryTile(context, entry);
                   },
                 );
@@ -368,7 +375,12 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   }
 
   Future<void> _confirmClearHistory(BuildContext context) async {
-    await ref.read(aiHistoryProvider.notifier).clear();
+    await ref.read(aiHistoryProvider.notifier).clear(
+          scope: widget.book == null
+              ? AiConversationScope.global
+              : AiConversationScope.book,
+          bookId: widget.book?.id,
+        );
     ref.read(aiChatProvider.notifier).clear();
     setState(() {
       _messageStream = null;
@@ -392,6 +404,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
           message,
           ref,
           isRegenerate,
+          book: widget.book,
         );
 
     setState(() {

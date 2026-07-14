@@ -1,15 +1,13 @@
 import 'dart:async';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
-import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'base_tool.dart';
 
 class CurrentReadingMetadataTool
     extends RepositoryTool<JsonMap, Map<String, dynamic>> {
-  CurrentReadingMetadataTool(this._ref)
+  CurrentReadingMetadataTool(this._conversation)
       : super(
           name: 'current_reading_metadata',
           description:
@@ -21,7 +19,7 @@ class CurrentReadingMetadataTool
           timeout: const Duration(seconds: 2),
         );
 
-  final WidgetRef _ref;
+  final AiConversationContext _conversation;
 
   @override
   JsonMap parseInput(Map<String, dynamic> json) {
@@ -30,19 +28,18 @@ class CurrentReadingMetadataTool
 
   @override
   Future<Map<String, dynamic>> run(JsonMap input) async {
-    final state = _ref.read(currentReadingProvider);
-    final book = state.book;
+    final state = _conversation.readingState;
+    final book = _conversation.book;
 
-    if (!state.isReading || book == null) {
+    if (book == null) {
       return {
         'isReading': false,
-        'message':
-            'No active reading session is detected. The user might not be reading right now.',
+        'message': 'This conversation is not associated with a book.',
       };
     }
 
     return {
-      'isReading': true,
+      'isReading': state?.isReading == true,
       'book': {
         'id': book.id,
         'title': book.title,
@@ -58,16 +55,20 @@ class CurrentReadingMetadataTool
         'createTime': book.createTime.toIso8601String(),
         'updateTime': book.updateTime.toIso8601String(),
       },
-      'progress': {
-        'percentage': state.percentage,
-        'cfi': state.cfi,
-      },
-      'chapter': {
-        'title': state.chapterTitle,
-        'href': state.chapterHref,
-        'currentPage': state.chapterCurrentPage,
-        'totalPages': state.chapterTotalPages,
-      },
+      'progress': state == null
+          ? null
+          : {
+              'percentage': state.percentage,
+              'cfi': state.cfi,
+            },
+      'chapter': state == null
+          ? null
+          : {
+              'title': state.chapterTitle,
+              'href': state.chapterHref,
+              'currentPage': state.chapterCurrentPage,
+              'totalPages': state.chapterTotalPages,
+            },
     };
   }
 }
@@ -77,5 +78,5 @@ final AiToolDefinition currentReadingMetadataToolDefinition = AiToolDefinition(
   displayNameBuilder: (L10n l10n) => l10n.aiToolCurrentReadingMetadataName,
   descriptionBuilder: (L10n l10n) =>
       l10n.aiToolCurrentReadingMetadataDescription,
-  build: (context) => CurrentReadingMetadataTool(context.ref).tool,
+  build: (context) => CurrentReadingMetadataTool(context.conversation).tool,
 );

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'base_tool.dart';
 import 'repository/chapter_content_repository.dart';
@@ -10,7 +9,7 @@ import 'repository/chapter_content_repository.dart';
 class CurrentChapterContentTool
     extends RepositoryTool<JsonMap, Map<String, dynamic>> {
   CurrentChapterContentTool(
-    this._ref,
+    this._conversation,
     this._repository,
   ) : super(
           name: 'current_chapter_content',
@@ -23,7 +22,7 @@ class CurrentChapterContentTool
           timeout: const Duration(seconds: 4),
         );
 
-  final WidgetRef _ref;
+  final AiConversationContext _conversation;
   final ChapterContentRepository _repository;
 
   @override
@@ -33,7 +32,7 @@ class CurrentChapterContentTool
 
   @override
   Future<Map<String, dynamic>> run(JsonMap input) async {
-    final content = await _repository.fetchCurrent(_ref);
+    final content = await _repository.fetchCurrent(_conversation);
     return {
       'content': content,
     };
@@ -45,7 +44,7 @@ final AiToolDefinition currentChapterContentToolDefinition = AiToolDefinition(
   displayNameBuilder: (L10n l10n) => l10n.aiToolCurrentChapterContentName,
   descriptionBuilder: (L10n l10n) =>
       l10n.aiToolCurrentChapterContentDescription,
-  build: (context) =>
-      CurrentChapterContentTool(context.ref, const ChapterContentRepository())
-          .tool,
+  build: (context) => CurrentChapterContentTool(
+          context.conversation, const ChapterContentRepository())
+      .tool,
 );

@@ -1,8 +1,15 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/dao/book.dart';
+import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/providers/ai_history.dart';
+import 'package:anx_reader/providers/book_toc.dart';
+import 'package:anx_reader/providers/chapter_content_bridge.dart';
+import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/service/ai/ai_history.dart';
+import 'package:anx_reader/service/ai/conversation_memory.dart';
 import 'package:anx_reader/service/ai/index.dart';
 import 'package:anx_reader/utils/ai_reasoning_parser.dart';
+import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:langchain_core/chat_models.dart';
@@ -11,11 +18,14 @@ part 'ai_chat.g.dart';
 
 @Riverpod(keepAlive: true)
 class AiChat extends _$AiChat {
+  static const ConversationMemory _conversationMemory = ConversationMemory();
   String? _currentSessionId;
+  AiChatHistoryEntry? _currentConversation;
 
   @override
   FutureOr<List<ChatMessage>> build() async {
     _currentSessionId = null;
+    _currentConversation = null;
     return List<ChatMessage>.empty();
   }
 
@@ -36,8 +46,9 @@ class AiChat extends _$AiChat {
   Stream<List<ChatMessage>> sendMessageStream(
     String message,
     WidgetRef widgetRef,
-    bool isRegenerate,
-  ) async* {
+    bool isRegenerate, {
+    Book? book,
+  }) async* {
     final sessionId = _ensureSessionId();
     final serviceId = Prefs().selectedAiService;
     final config = Prefs().getAiConfig(serviceId);
@@ -54,6 +65,8 @@ class AiChat extends _$AiChat {
       }
     }
     final now = DateTime.now().millisecondsSinceEpoch;
+    final originalEntry = entry ?? _currentConversation;
+    final boundBook = await _resolveBoundBook(originalEntry, book);
 
     List<ChatMessage> messages = [
       ...state.whenOrNull(data: (data) => data) ?? [],
@@ -67,15 +80,11 @@ class AiChat extends _$AiChat {
       ChatMessage.ai(''),
     ];
 
-    final draftEntry = (entry ??
-            AiChatHistoryEntry(
-              id: sessionId,
+    final draftEntry = (originalEntry ??
+            AiHistoryStore.createEntry(
               serviceId: serviceId,
               model: model,
-              createdAt: entry?.createdAt ?? now,
-              updatedAt: now,
-              messages: List<ChatMessage>.from(updatedMessages),
-              completed: false,
+              book: boundBook,
             ))
         .copyWith(
       messages: List<ChatMessage>.from(updatedMessages),
@@ -85,16 +94,24 @@ class AiChat extends _$AiChat {
     );
 
     await historyNotifier.upsert(draftEntry);
+    _currentSessionId = draftEntry.id;
+    _currentConversation = draftEntry;
 
     yield updatedMessages;
 
     String assistantResponse = "";
     try {
+      final requestMessages = await _conversationMemory.buildPromptMessages(
+        conversationId: draftEntry.id,
+        messages: messages,
+        summarize: _summarizeConversationBlock,
+      );
       await for (final chunk in aiGenerateStream(
-        messages,
+        requestMessages,
         regenerate: isRegenerate,
         useAgent: true,
         ref: widgetRef,
+        conversation: _buildConversationContext(widgetRef, boundBook),
       )) {
         assistantResponse = chunk;
 
@@ -114,6 +131,7 @@ class AiChat extends _$AiChat {
         model: model,
       );
       await historyNotifier.upsert(completedEntry);
+      _currentConversation = completedEntry;
     } catch (_) {
       final failedEntry = draftEntry.copyWith(
         messages: List<ChatMessage>.from(state.value ?? updatedMessages),
@@ -122,6 +140,7 @@ class AiChat extends _$AiChat {
         model: model,
       );
       await historyNotifier.upsert(failedEntry);
+      _currentConversation = failedEntry;
       rethrow;
     }
   }
@@ -129,10 +148,12 @@ class AiChat extends _$AiChat {
   void clear() {
     state = AsyncData(List<ChatMessage>.empty());
     _currentSessionId = null;
+    _currentConversation = null;
   }
 
   void loadHistoryEntry(AiChatHistoryEntry entry) {
     _currentSessionId = entry.id;
+    _currentConversation = entry;
     state = AsyncData(List<ChatMessage>.from(entry.messages));
   }
 
@@ -144,5 +165,58 @@ class AiChat extends _$AiChat {
 
   String _generateSessionId() {
     return DateTime.now().microsecondsSinceEpoch.toString();
+  }
+
+  Future<Book?> _resolveBoundBook(
+    AiChatHistoryEntry? entry,
+    Book? requestedBook,
+  ) async {
+    final bookId = entry?.bookId;
+    if (bookId == null) return requestedBook;
+    if (requestedBook?.id == bookId) return requestedBook;
+    try {
+      return await bookDao.selectBookById(bookId);
+    } on StateError {
+      return null;
+    }
+  }
+
+  AiConversationContext _buildConversationContext(
+    WidgetRef ref,
+    Book? book,
+  ) {
+    final reading = ref.read(currentReadingProvider);
+    final isBoundBookOpen =
+        book != null && reading.isReading && reading.book?.id == book.id;
+    return AiConversationContext(
+      book: book,
+      readingState: isBoundBookOpen ? reading : null,
+      chapterContentHandlers:
+          isBoundBookOpen ? ref.read(chapterContentBridgeProvider) : null,
+      tocItems: isBoundBookOpen ? ref.read(bookTocProvider) : const [],
+    );
+  }
+
+  Future<String?> _summarizeConversationBlock(String block) async {
+    var response = '';
+    await for (final chunk in aiGenerateStream(
+      [
+        ChatMessage.humanText(
+          '''Create compact durable memory for this conversation block.
+
+Preserve user goals, preferences, constraints, decisions, unresolved questions, facts, and book-specific context. Do not include hidden reasoning, tool-call syntax, or transcript chatter. Write concise factual memory in the conversation's language.
+
+Conversation block:
+$block''',
+        ),
+      ],
+      regenerate: false,
+    )) {
+      response = chunk;
+    }
+    if (response.trim().isEmpty || response.startsWith('Error:')) {
+      return null;
+    }
+    return response;
   }
 }

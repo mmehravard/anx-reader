@@ -13,7 +13,7 @@ import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Current app database version
-const int currentDbVersion = 7;
+const int currentDbVersion = 9;
 
 const createBookSQL = '''
 CREATE TABLE tb_books (
@@ -97,6 +97,47 @@ CREATE TABLE tb_groups (
 )
 ''';
 
+const createAiConversationsSQL = '''
+CREATE TABLE tb_ai_conversations (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL,
+  book_id INTEGER,
+  book_md5 TEXT,
+  book_title_snapshot TEXT,
+  service_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (book_id) REFERENCES tb_books(id)
+)
+''';
+
+const createAiMessagesSQL = '''
+CREATE TABLE tb_ai_messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  message_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (conversation_id) REFERENCES tb_ai_conversations(id) ON DELETE CASCADE,
+  UNIQUE(conversation_id, sequence)
+)
+''';
+
+const createAiConversationSummariesSQL = '''
+CREATE TABLE tb_ai_conversation_summaries (
+  conversation_id TEXT NOT NULL,
+  start_sequence INTEGER NOT NULL,
+  end_sequence INTEGER NOT NULL,
+  summary TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (conversation_id, start_sequence, end_sequence),
+  FOREIGN KEY (conversation_id) REFERENCES tb_ai_conversations(id) ON DELETE CASCADE,
+  CHECK (end_sequence - start_sequence = 19)
+)
+''';
+
 class DBHelper {
   static final DBHelper _instance = DBHelper._internal();
   static Database? _database;
@@ -126,7 +167,7 @@ class DBHelper {
           path,
           version: dbVersion,
           onCreate: (db, version) async {
-            onUpgradeDatabase(db, 0, version);
+            await onUpgradeDatabase(db, 0, version);
           },
           onUpgrade: onUpgradeDatabase,
         );
@@ -144,7 +185,7 @@ class DBHelper {
           options: OpenDatabaseOptions(
             version: dbVersion,
             onCreate: (db, version) async {
-              onUpgradeDatabase(db, 0, version);
+              await onUpgradeDatabase(db, 0, version);
             },
             onUpgrade: onUpgradeDatabase,
           ),
@@ -323,6 +364,9 @@ class DBHelper {
         await db.execute(createThemeSQL);
         await db.execute(createStyleSQL);
         await db.execute(createReadingTimeSQL);
+        await db.execute(createAiConversationsSQL);
+        await db.execute(createAiMessagesSQL);
+        await db.execute(createAiConversationSummariesSQL);
         await db.execute(primaryTheme1);
         await db.execute(primaryTheme2);
         continue case1;
@@ -425,6 +469,24 @@ class DBHelper {
             VALUES (?, '...', 0, datetime('now'), datetime('now'))
           ''', [groupId]);
         }
+        continue case7;
+      case7:
+      case 7:
+        await db.execute(createAiConversationsSQL);
+        await db.execute(createAiMessagesSQL);
+        await db.execute(
+          'CREATE INDEX idx_ai_conversations_scope_book_updated ON tb_ai_conversations(scope, book_id, updated_at DESC)',
+        );
+        await db.execute(
+          'CREATE INDEX idx_ai_messages_conversation_sequence ON tb_ai_messages(conversation_id, sequence)',
+        );
+        continue case8;
+      case8:
+      case 8:
+        await db.execute(createAiConversationSummariesSQL);
+        await db.execute(
+          'CREATE INDEX idx_ai_summaries_conversation_range ON tb_ai_conversation_summaries(conversation_id, start_sequence)',
+        );
     }
 
     if (oldVersion != 0 && Prefs().webdavStatus) {

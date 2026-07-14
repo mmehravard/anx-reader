@@ -11,6 +11,7 @@ class BookContentSearchTool
     extends RepositoryTool<BookContentSearchInput, Map<String, dynamic>> {
   BookContentSearchTool(
     this._repository,
+    this._boundBookId,
   ) : super(
           name: 'book_content_search',
           description:
@@ -50,6 +51,7 @@ class BookContentSearchTool
         );
 
   final BookContentSearchRepository _repository;
+  final int? _boundBookId;
 
   @override
   BookContentSearchInput parseInput(Map<String, dynamic> json) {
@@ -58,7 +60,9 @@ class BookContentSearchTool
 
   @override
   Future<Map<String, dynamic>> run(BookContentSearchInput input) async {
-    return _repository.search(input);
+    return _repository.search(
+      _boundBookId == null ? input : input.copyWith(bookId: _boundBookId),
+    );
   }
 }
 
@@ -66,6 +70,8 @@ final AiToolDefinition bookContentSearchToolDefinition = AiToolDefinition(
   id: 'book_content_search',
   displayNameBuilder: (L10n l10n) => l10n.aiToolBookContentSearchName,
   descriptionBuilder: (L10n l10n) => l10n.aiToolBookContentSearchDescription,
-  build: (context) =>
-      BookContentSearchTool(context.bookContentSearchRepository).tool,
+  build: (context) => BookContentSearchTool(
+    context.bookContentSearchRepository,
+    context.conversation.book?.id,
+  ).tool,
 );
